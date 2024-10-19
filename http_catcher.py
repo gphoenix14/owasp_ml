@@ -2,6 +2,8 @@ import subprocess
 import csv
 import argparse
 import json
+import os
+import re
 from datetime import datetime
 from scapy.all import sniff, IP, TCP, Raw
 
@@ -14,8 +16,32 @@ parser = argparse.ArgumentParser(description='Capture HTTP requests on a specifi
 parser.add_argument('-p', '--port', type=int, required=True, help='Port to capture HTTP traffic')
 args = parser.parse_args()
 
-# File CSV di output
-output_file = 'http_requests.csv'
+# Ottenere il percorso della directory di log dal file di configurazione
+log_directory = config.get("output_log_directory", ".")
+
+# Creare la directory di log se non esiste
+if not os.path.exists(log_directory):
+    os.makedirs(log_directory)
+
+# Generare il nome del file CSV di output
+log_pattern = re.compile(r'log_(\d+)\.csv')
+existing_ids = []
+
+for filename in os.listdir(log_directory):
+    match = log_pattern.match(filename)
+    if match:
+        existing_ids.append(int(match.group(1)))
+
+if existing_ids:
+    last_id = max(existing_ids)
+else:
+    last_id = 0
+
+new_id = last_id + 1
+
+output_file = os.path.join(log_directory, f'log_{new_id}.csv')
+
+print(f"Output file: {output_file}")
 
 # Preprocesso dei campi attivi nel file di configurazione
 enabled_fields = {key: value for key, value in config["fields"].items() if value}
@@ -27,17 +53,8 @@ with open(output_file, 'w', newline='') as f:
     writer = csv.writer(f)
     writer.writerow(csv_headers)
 
-# Pre-calcolare quali campi devono essere estratti
-capture_datetime = 'datetime' in enabled_fields
-capture_ip_src = 'ip_src' in enabled_fields
-capture_src_port = 'src_port' in enabled_fields
-capture_http_method = 'http_method' in enabled_fields
-capture_endpoint = 'endpoint' in enabled_fields
-capture_query = 'query' in enabled_fields
-capture_payload = 'payload' in enabled_fields
-capture_referer = 'referer' in enabled_fields
-capture_user_agent = 'user_agent' in enabled_fields
-capture_cookie = 'cookie' in enabled_fields
+# Pre-calcolare i campi da catturare
+capture_fields = set(csv_headers)
 
 # Funzione per analizzare i pacchetti HTTP
 def process_packet(packet):
@@ -49,21 +66,21 @@ def process_packet(packet):
                 payload = packet[Raw].load.decode('utf-8', errors='ignore')
                 
                 if 'HTTP' in payload:
-                    # Creare una riga vuota con valori dinamici
-                    row = []
+                    # Dizionario per i campi
+                    row_dict = {}
 
                     # Estrazione delle informazioni
-                    if capture_datetime:
+                    if 'datetime' in capture_fields:
                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        row.append(timestamp)
+                        row_dict['datetime'] = timestamp
 
-                    if capture_ip_src:
+                    if 'ip_src' in capture_fields:
                         ip_src = packet[IP].src
-                        row.append(ip_src)
+                        row_dict['ip_src'] = ip_src
 
-                    if capture_src_port:
+                    if 'src_port' in capture_fields:
                         src_port = packet[TCP].sport
-                        row.append(src_port)
+                        row_dict['src_port'] = src_port
 
                     # Analisi della richiesta HTTP
                     lines = payload.split('\r\n')
@@ -72,20 +89,20 @@ def process_packet(packet):
                     http_method = parts[0] if len(parts) > 0 else ''
                     uri = parts[1] if len(parts) > 1 else ''
 
-                    if capture_http_method:
-                        row.append(http_method)
+                    if 'http_method' in capture_fields:
+                        row_dict['http_method'] = http_method
 
-                    if capture_endpoint:
+                    if 'endpoint' in capture_fields:
                         endpoint = uri.split('?')[0] if uri else ''
-                        row.append(endpoint)
+                        row_dict['endpoint'] = endpoint
 
-                    if capture_query:
+                    if 'query' in capture_fields:
                         query = uri.split('?', 1)[1] if '?' in uri else ''
-                        row.append(query)
+                        row_dict['query'] = query
 
-                    if capture_payload:
+                    if 'payload' in capture_fields:
                         post_payload = payload.split('\r\n\r\n', 1)[1] if 'POST' in http_method and '\r\n\r\n' in payload else ''
-                        row.append(post_payload)
+                        row_dict['payload'] = post_payload
 
                     # Analisi degli header HTTP
                     headers = {}
@@ -94,17 +111,20 @@ def process_packet(packet):
                             key, value = header_line.split(': ', 1)
                             headers[key] = value
 
-                    if capture_referer:
+                    if 'referer' in capture_fields:
                         referer = headers.get('Referer', '')
-                        row.append(referer)
+                        row_dict['referer'] = referer
 
-                    if capture_user_agent:
+                    if 'user_agent' in capture_fields:
                         user_agent = headers.get('User-Agent', '')
-                        row.append(user_agent)
+                        row_dict['user_agent'] = user_agent
 
-                    if capture_cookie:
+                    if 'cookie' in capture_fields:
                         cookie = headers.get('Cookie', '')
-                        row.append(cookie)
+                        row_dict['cookie'] = cookie
+
+                    # Creare la lista di valori per la riga, nell'ordine dei csv_headers
+                    row = [row_dict.get(field, '') for field in csv_headers]
 
                     # Scrittura nel file CSV
                     with open(output_file, 'a', newline='') as f:

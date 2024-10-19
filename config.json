@@ -10,5 +10,6 @@
         "referer": false,
         "user_agent": false,
         "cookie": false
-    }
+    },
+    "output_log_directory": "./log/"
 }
