@@ -2,13 +2,13 @@
     "fields": {
         "datetime": true,
         "ip_src": true,
-        "src_port": true,
-        "endpoint": true,
+        "src_port": false,
+        "endpoint": false,
         "query": true,
         "payload": true,
         "http_method": true,
-        "referer": true,
-        "user_agent": true,
-        "cookie": true
+        "referer": false,
+        "user_agent": false,
+        "cookie": false
     }
 }
