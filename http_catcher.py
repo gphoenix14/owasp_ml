@@ -43,81 +43,83 @@ capture_cookie = 'cookie' in enabled_fields
 def process_packet(packet):
     if packet.haslayer(TCP) and packet.haslayer(Raw):
         try:
-            # Decodificare il payload HTTP
-            payload = packet[Raw].load.decode('utf-8', errors='ignore')
-            
-            if 'HTTP' in payload:
-                # Creare una riga vuota con valori dinamici
-                row = []
+            # Verificare che il pacchetto sia una richiesta dal client al server
+            if packet[TCP].dport == args.port:
+                # Decodificare il payload HTTP
+                payload = packet[Raw].load.decode('utf-8', errors='ignore')
+                
+                if 'HTTP' in payload:
+                    # Creare una riga vuota con valori dinamici
+                    row = []
 
-                # Estrazione delle informazioni
-                if capture_datetime:
-                    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    row.append(timestamp)
+                    # Estrazione delle informazioni
+                    if capture_datetime:
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        row.append(timestamp)
 
-                if capture_ip_src:
-                    ip_src = packet[IP].src
-                    row.append(ip_src)
+                    if capture_ip_src:
+                        ip_src = packet[IP].src
+                        row.append(ip_src)
 
-                if capture_src_port:
-                    src_port = packet[TCP].sport
-                    row.append(src_port)
+                    if capture_src_port:
+                        src_port = packet[TCP].sport
+                        row.append(src_port)
 
-                # Analisi della richiesta HTTP
-                lines = payload.split('\r\n')
-                request_line = lines[0] if len(lines) > 0 else ''
-                parts = request_line.split(' ')
-                http_method = parts[0] if len(parts) > 0 else ''
-                uri = parts[1] if len(parts) > 1 else ''
+                    # Analisi della richiesta HTTP
+                    lines = payload.split('\r\n')
+                    request_line = lines[0] if len(lines) > 0 else ''
+                    parts = request_line.split(' ')
+                    http_method = parts[0] if len(parts) > 0 else ''
+                    uri = parts[1] if len(parts) > 1 else ''
 
-                if capture_http_method:
-                    row.append(http_method)
+                    if capture_http_method:
+                        row.append(http_method)
 
-                if capture_endpoint:
-                    endpoint = uri.split('?')[0] if uri else ''
-                    row.append(endpoint)
+                    if capture_endpoint:
+                        endpoint = uri.split('?')[0] if uri else ''
+                        row.append(endpoint)
 
-                if capture_query:
-                    query = uri.split('?', 1)[1] if '?' in uri else ''
-                    row.append(query)
+                    if capture_query:
+                        query = uri.split('?', 1)[1] if '?' in uri else ''
+                        row.append(query)
 
-                if capture_payload:
-                    post_payload = payload.split('\r\n\r\n',1)[1] if 'POST' in http_method and '\r\n\r\n' in payload else ''
-                    row.append(post_payload)
+                    if capture_payload:
+                        post_payload = payload.split('\r\n\r\n', 1)[1] if 'POST' in http_method and '\r\n\r\n' in payload else ''
+                        row.append(post_payload)
 
-                # Analisi degli header HTTP
-                headers = {}
-                for header_line in lines[1:]:
-                    if ': ' in header_line:
-                        key, value = header_line.split(': ', 1)
-                        headers[key] = value
+                    # Analisi degli header HTTP
+                    headers = {}
+                    for header_line in lines[1:]:
+                        if ': ' in header_line:
+                            key, value = header_line.split(': ', 1)
+                            headers[key] = value
 
-                if capture_referer:
-                    referer = headers.get('Referer', '')
-                    row.append(referer)
+                    if capture_referer:
+                        referer = headers.get('Referer', '')
+                        row.append(referer)
 
-                if capture_user_agent:
-                    user_agent = headers.get('User-Agent', '')
-                    row.append(user_agent)
+                    if capture_user_agent:
+                        user_agent = headers.get('User-Agent', '')
+                        row.append(user_agent)
 
-                if capture_cookie:
-                    cookie = headers.get('Cookie', '')
-                    row.append(cookie)
+                    if capture_cookie:
+                        cookie = headers.get('Cookie', '')
+                        row.append(cookie)
 
-                # Scrittura nel file CSV
-                with open(output_file, 'a', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(row)
+                    # Scrittura nel file CSV
+                    with open(output_file, 'a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow(row)
 
-                # Stampa sul terminale
-                print(f"Captured HTTP request: {row}")
+                    # Stampa sul terminale
+                    print(f"Captured HTTP request: {row}")
 
         except Exception as e:
             print(f"Error processing packet: {e}")
 
 # Avviare lo sniffing per catturare i pacchetti HTTP sulla porta specificata
 def start_sniffing():
-    filter_str = f"tcp port {args.port} and (((ip[2:2] - ((ip[0]&0xf)<<2)) - ((tcp[12]&0xf0)>>2)) != 0)"
+    filter_str = f"tcp dst port {args.port} and (((ip[2:2] - ((ip[0]&0xf)<<2)) - ((tcp[12]&0xf0)>>2)) != 0)"
     print(f"Starting sniffing on port {args.port}...")
     
     sniff(filter=filter_str, prn=process_packet, store=0)
