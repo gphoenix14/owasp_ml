@@ -1,0 +1,10 @@
+datetime,ip_src,src_port,endpoint,query,payload
+2024-10-19 06:00:41,192.168.168.1,56468,/receive_cookies,,"{
+    ""cookies"" : ""scemo chi legge ""
+}"
+2024-10-19 06:01:05,192.168.168.1,56504,/receive_cookies,,"{
+    ""cookies"" : ""scemo chi legge2 ""
+}"
+2024-10-19 06:01:38,192.168.168.1,56522,/receive_cookies,,"{
+    ""cookies"" : ""scemo chi legge3 ""
+}"
